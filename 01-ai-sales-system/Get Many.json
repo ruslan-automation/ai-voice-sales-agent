@@ -1,0 +1,144 @@
+{
+  "name": "Get Many",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "check-availability",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f1e4c24f-1a10-4890-943e-db32cfde631f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -144,
+        272
+      ],
+      "webhookId": "77f0b8ba-0f31-4e44-b43a-9e8d4fab1343"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "minimaxcreator108@gmail.com",
+          "mode": "list",
+          "cachedResultName": "minimaxcreator108@gmail.com"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $json.body.date }}T00:00:00+05:00",
+          "timeMax": "={{ $json.body.date }}T23:59:59+05:00",
+          "timeZone": {
+            "__rl": true,
+            "value": "Asia/Yekaterinburg",
+            "mode": "list",
+            "cachedResultName": "Asia/Yekaterinburg"
+          }
+        }
+      },
+      "id": "66f84a1c-3ba1-40b5-baba-6d87c864a3cf",
+      "name": "Google Calendar Get Many",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        112,
+        272
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Ассистент дизайнера minimaxcreator"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// НАСТРОЙКИ КЛИНИКИ\n// ========================================\n\n// Рабочие часы клиники (Пн-Пт: 9-21, Сб: 10-18)\nconst workingHours = [9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20];\n\n// Смещение часового пояса (Екатеринбург = UTC+5)\nconst TIMEZONE_OFFSET = 5;\n\n// ========================================\n// ОБРАБОТКА СОБЫТИЙ ИЗ GOOGLE CALENDAR\n// ========================================\n\nconst busySlots = [];\nconst eventDetails = [];\n\n// Получаем все события на указанную дату\nconst events = $input.all();\n\nif (events && events.length > 0) {\n  for (const item of events) {\n    const event = item.json;\n    \n    // Проверяем, есть ли время начала события\n    if (event.start && event.start.dateTime) {\n      const startTime = new Date(event.start.dateTime);\n      \n      // ИСПРАВЛЕНИЕ: Берем UTC время и добавляем 5 часов вручную\n      let hour = startTime.getUTCHours() + TIMEZONE_OFFSET;\n      if (hour >= 24) hour -= 24;\n\n      // Добавляем час в список занятых\n      if (!busySlots.includes(hour)) {\n        busySlots.push(hour);\n      }\n      \n      // Сохраняем детали для отладки\n      eventDetails.push({\n        time: `${hour}:00`,\n        title: event.summary || 'Без названия',\n        utc_time: event.start.dateTime\n      });\n    }\n  }\n}\n\n// ========================================\n// ВЫЧИСЛЕНИЕ СВОБОДНЫХ СЛОТОВ\n// ========================================\n\n// Убираем занятые часы из рабочих\nconst availableSlots = workingHours.filter(hour => !busySlots.includes(hour));\n\n// Форматируем для ответа\nconst formattedSlots = availableSlots.map(hour => (hour < 10 ? `0${hour}:00` : `${hour}:00`));\nconst formattedBusySlots = busySlots.map(hour => (hour < 10 ? `0${hour}:00` : `${hour}:00`));\n\n// ========================================\n// ВОЗВРАЩАЕМ РЕЗУЛЬТАТ\n// ========================================\n\nconst requestBody = $('Webhook').item.json.body || {};\nconst requestedDate = requestBody.date || \"Не указана\";\n\nreturn {\n  json: {\n    success: true,\n    date: requestedDate,\n    available_slots: formattedSlots,\n    busy_slots: formattedBusySlots,\n    debug_events: eventDetails,\n    message: formattedSlots.length > 0 \n      ? `На ${requestedDate} доступно ${formattedSlots.length} слотов`\n      : `На ${requestedDate} нет свободных слотов`\n  }\n};"
+      },
+      "id": "02f067ec-0648-4fa9-a0f2-634930536142",
+      "name": "Вычислить свободные слоты",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "01d98f2b-3911-4a54-8d43-eae47228e07e",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        608,
+        272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar Get Many",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Get Many": {
+      "main": [
+        [
+          {
+            "node": "Вычислить свободные слоты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вычислить свободные слоты": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "f3b3d0c2-2bb8-45f2-9faa-11839f313501",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "063c8cba689329b722d1b1e1bfe8a02783ad3f5ae1e8b014d1ebde538179b085"
+  },
+  "id": "JTmXjPcspqDgpJagwCG4q",
+  "tags": []
+}

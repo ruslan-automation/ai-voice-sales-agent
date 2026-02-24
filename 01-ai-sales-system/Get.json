@@ -1,0 +1,95 @@
+{
+  "name": "Get",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-current-date",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fcf9ffb2-bbbb-479c-9386-58f0cee5e17e",
+      "name": "Webhook Get Date",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3528123b-2d6a-48ea-bb16-9289bf12b084"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Часовой пояс Екатеринбурга (UTC+5)\nconst TIMEZONE_OFFSET = 5;\n\n// Получаем текущее время в Екатеринбурге\nconst now = new Date();\nconst localTime = new Date(now.getTime() + TIMEZONE_OFFSET * 60 * 60 * 1000);\n\n// Форматируем даты\nconst formatDate = (date) => {\n  const year = date.getUTCFullYear();\n  const month = String(date.getUTCMonth() + 1).padStart(2, '0');\n  const day = String(date.getUTCDate()).padStart(2, '0');\n  return `${year}-${month}-${day}`;\n};\n\nconst formatDateRussian = (date) => {\n  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];\n  const days = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];\n  return `${date.getUTCDate()} ${months[date.getUTCMonth()]} (${days[date.getUTCDay()]})`;\n};\n\n// Сегодня\nconst today = new Date(localTime);\n\n// Завтра\nconst tomorrow = new Date(localTime);\ntomorrow.setUTCDate(tomorrow.getUTCDate() + 1);\n\n// Послезавтра\nconst dayAfter = new Date(localTime);\ndayAfter.setUTCDate(dayAfter.getUTCDate() + 2);\n\nreturn {\n  json: {\n    today: {\n      date: formatDate(today),\n      readable: formatDateRussian(today)\n    },\n    tomorrow: {\n      date: formatDate(tomorrow),\n      readable: formatDateRussian(tomorrow)\n    },\n    day_after_tomorrow: {\n      date: formatDate(dayAfter),\n      readable: formatDateRussian(dayAfter)\n    },\n    message: `Сегодня ${formatDateRussian(today)}. Завтра: ${formatDate(tomorrow)}. Послезавтра: ${formatDate(dayAfter)}.`\n  }\n};"
+      },
+      "id": "7eca4893-f445-4c84-a90c-141637264707",
+      "name": "Return Current Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c4d17a92-b81a-4e6d-9138-ed37bd10e78e",
+      "name": "Respond Date",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        512,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Get Date": {
+      "main": [
+        [
+          {
+            "node": "Return Current Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Current Date": {
+      "main": [
+        [
+          {
+            "node": "Respond Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "f71a1677-53a8-439a-b2bf-43e38773c816",
+  "meta": {
+    "instanceId": "063c8cba689329b722d1b1e1bfe8a02783ad3f5ae1e8b014d1ebde538179b085"
+  },
+  "id": "BdoVHb_ggc7G-t5j5wY7r",
+  "tags": []
+}

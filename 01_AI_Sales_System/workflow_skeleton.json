@@ -1,0 +1,115 @@
+{
+  "name": "AI Head of Sales (ElevenLabs + AmoCRM)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "elevenlabs-webhook",
+        "options": {}
+      },
+      "id": "webhook-start",
+      "name": "ElevenLabs Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract call data\nconst callData = items[0].json;\n\nreturn {\n  json: {\n    agent_id: callData.agent_id,\n    conversation_id: callData.conversation_id,\n    transcript: callData.transcript,\n    analysis: callData.analysis // Assuming ElevenLabs sends analysis\n  }\n};"
+      },
+      "id": "extract-data",
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "name": "={{ $json.conversation_id }}",
+        "additionalFields": {
+          "status_id": 123456 // Replace with your Lead Status ID
+        }
+      },
+      "id": "create-lead",
+      "name": "Create Lead (AmoCRM)",
+      "type": "n8n-nodes-base.amocrm",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "amocrmOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "AmoCRM account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "New Call from AI Agent",
+        "chatId": "YOUR_CHAT_ID",
+        "additionalFields": {
+            "parse_mode": "Markdown"
+        },
+        "text": "=📞 **New Call Received**\n\n**ID:** {{ $json.conversation_id }}\n**Highlights:** {{ $json.analysis.success_evaluation }}"
+      },
+      "id": "notify-telegram",
+      "name": "Notify Manager",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "ElevenLabs Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Call Data": {
+      "main": [
+        [
+          {
+            "node": "Create Lead (AmoCRM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead (AmoCRM)": {
+      "main": [
+        [
+          {
+            "node": "Notify Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

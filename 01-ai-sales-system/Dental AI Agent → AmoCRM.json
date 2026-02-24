@@ -1,0 +1,314 @@
+{
+  "name": "Dental AI Agent → AmoCRM",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dental-lead",
+        "options": {}
+      },
+      "id": "51570f29-73c8-4ac1-a09b-03c84dd40f61",
+      "name": "ElevenLabs Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -16
+      ],
+      "webhookId": "dental-lead"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "patient_name",
+              "name": "patient_name",
+              "value": "={{ $json.body.patient_name ?? $json.query.patient_name }}",
+              "type": "string"
+            },
+            {
+              "id": "phone_number",
+              "name": "phone_number",
+              "value": "={{ $json.body.phone_number ?? $json.query.phone_number }}",
+              "type": "string"
+            },
+            {
+              "id": "appointment_time",
+              "name": "appointment_time",
+              "value": "={{ $json.body.appointment_time ?? $json.query.appointment_time }}",
+              "type": "string"
+            },
+            {
+              "id": "complaint",
+              "name": "complaint",
+              "value": "={{ $json.body.complaint ?? $json.query.complaint }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2902585b-004e-4e07-b187-c86d3f06687a",
+      "name": "Extract Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        256,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "669820318",
+        "text": "=🦷 *Новая заявка с AI-бота*\n\n👤 *Пациент:* {{ $('Extract Fields').item.json.patient_name }}\n📱 *Телефон:* {{ $('Extract Fields').item.json.phone_number }}\n🕐 *Время:* {{ $('Extract Fields').item.json.appointment_time }}\n💬 *Жалоба:* {{ $('Extract Fields').item.json.complaint }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "38263847-358e-4278-a71f-25d33e931078",
+      "name": "Telegram: Уведомление",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        -16
+      ],
+      "webhookId": "6a4af7de-198d-4195-9350-869315f8bcad",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Стоматолгия"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ruslan1993.amocrm.ru/api/v4/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{\"name\": \"{{ $json.patient_name }}\", \"custom_fields_values\": [{\"field_code\": \"PHONE\", \"values\": [{\"value\": \"{{ $json.phone_number }}\"}]}]}]",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "amocrm-contact",
+      "name": "AmoCRM Создать контакт",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        -16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Амо СРМ Стоматология"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ruslan1993.amocrm.ru/api/v4/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{\"name\": \"{{ $('Парсинг даты').item.json.deal_name }}\", \"pipeline_id\": 10525470, \"custom_fields_values\": [{\"field_id\": 1128076, \"values\": [{\"value\": \"{{ $('Парсинг даты').item.json.date_iso }}\"}]}], \"_embedded\": {\"contacts\": [{\"id\": {{ $json._embedded.contacts[0].id }}}]}}]",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "amocrm-lead",
+      "name": "AmoCRM Создать сделку",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        736,
+        -16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Амо СРМ Стоматология"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst appointmentText = data.appointment_time || '';\n\n// Часовой пояс Екатеринбурга (UTC+5)\nconst TIMEZONE_OFFSET_HOURS = 5;\n\nfunction parseDate(text) {\n  // ISO формат (2026-01-28 13:00)\n  const isoMatch = text.match(/(\\d{4})-(\\d{2})-(\\d{2})[T\\s](\\d{1,2}):(\\d{2})/);\n  if (isoMatch) {\n    const [_, year, month, day, hours, minutes] = isoMatch;\n    const localDate = new Date(Date.UTC(\n      parseInt(year), \n      parseInt(month) - 1, \n      parseInt(day), \n      parseInt(hours) - TIMEZONE_OFFSET_HOURS, \n      parseInt(minutes)\n    ));\n    return localDate;\n  }\n  \n  // Русский текст\n  const now = new Date();\n  const localNow = new Date(now.getTime() + TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000);\n  let targetDate = new Date(localNow);\n  const lowerText = text.toLowerCase();\n  \n  if (lowerText.includes('завтра')) {\n    targetDate.setUTCDate(targetDate.getUTCDate() + 1);\n  } else if (lowerText.includes('послезавтра')) {\n    targetDate.setUTCDate(targetDate.getUTCDate() + 2);\n  }\n  \n  const timeMatch = text.match(/(\\d{1,2})[:\\s-]?(\\d{2})?/);\n  if (timeMatch) {\n    const hours = parseInt(timeMatch[1]);\n    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;\n    targetDate.setUTCHours(hours - TIMEZONE_OFFSET_HOURS, minutes, 0, 0);\n  } else {\n    if (lowerText.includes('утр')) targetDate.setUTCHours(9 - TIMEZONE_OFFSET_HOURS, 0, 0, 0);\n    else if (lowerText.includes('вечер')) targetDate.setUTCHours(18 - TIMEZONE_OFFSET_HOURS, 0, 0, 0);\n    else targetDate.setUTCHours(12 - TIMEZONE_OFFSET_HOURS, 0, 0, 0);\n  }\n  \n  return targetDate;\n}\n\nconst appointmentDate = parseDate(appointmentText);\nconst appointmentTimestamp = Math.floor(appointmentDate.getTime() / 1000);\nconst reminderTimestamp = appointmentTimestamp - 3600;\n\nconst displayDate = new Date(appointmentDate.getTime() + TIMEZONE_OFFSET_HOURS * 60 * 60 * 1000);\nconst timeFormatted = displayDate.getUTCHours().toString().padStart(2, '0') + ':' + displayDate.getUTCMinutes().toString().padStart(2, '0');\n\n// Новый формат: Пациент — причина\nconst deal_name = `${data.patient_name} \\u2014 ${data.complaint}`;\n\n// Формат для AmoCRM и Google Calendar (Y-m-d\\TH:i:sP) с часовым поясом\nconst pad = (n) => n.toString().padStart(2, '0');\nconst y = displayDate.getUTCFullYear();\nconst m = pad(displayDate.getUTCMonth() + 1);\nconst d = pad(displayDate.getUTCDate());\nconst h = pad(displayDate.getUTCHours());\nconst min = pad(displayDate.getUTCMinutes());\nconst s = pad(displayDate.getUTCSeconds());\n\n// Единый формат с явным указанием часового пояса Екатеринбурга\nconst date_iso = `${y}-${m}-${d}T${h}:${min}:${s}+05:00`;\nconst appointment_iso = date_iso; // Теперь одинаковый формат для всех\n\nreturn [{\n  json: {\n    ...data,\n    appointment_timestamp: appointmentTimestamp,\n    reminder_timestamp: reminderTimestamp,\n    time_formatted: timeFormatted,\n    deal_name: deal_name,\n    appointment_iso: appointment_iso,\n    date_iso: date_iso\n  }\n}];"
+      },
+      "id": "parse-datetime",
+      "name": "Парсинг даты",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ruslan1993.amocrm.ru/api/v4/tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{\"entity_id\": {{ $('AmoCRM Создать сделку').item.json._embedded.leads[0].id }}, \"entity_type\": \"leads\", \"text\": \"Связаться: {{ $('Парсинг даты').item.json.patient_name }}\\nПриём в {{ $('Парсинг даты').item.json.time_formatted }}\\nЖалоба: {{ $('Парсинг даты').item.json.complaint }}\\nТел: {{ $('Парсинг даты').item.json.phone_number }}\", \"complete_till\": {{ $('Парсинг даты').item.json.reminder_timestamp }}, \"task_type_id\": 1}]",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "amocrm-task",
+      "name": "AmoCRM Создать задачу",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        912,
+        -16
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Амо СРМ Стоматология"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "minimaxcreator108@gmail.com",
+          "mode": "list",
+          "cachedResultName": "minimaxcreator108@gmail.com"
+        },
+        "start": "={{ $('Парсинг даты').item.json.appointment_iso }}",
+        "end": "={{ DateTime.fromISO($('Парсинг даты').item.json.appointment_iso).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "description": "=Телефон: {{ $('Парсинг даты').item.json.phone_number }}\nЖалоба: {{ $('Парсинг даты').item.json.complaint }}",
+          "summary": "=Приём: {{ $('Парсинг даты').item.json.patient_name }} | {{ $('Парсинг даты').item.json.complaint }}"
+        }
+      },
+      "id": "google-calendar-create",
+      "name": "Google Calendar: Приём",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        -176
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Ассистент дизайнера minimaxcreator"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "ElevenLabs Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AmoCRM Создать контакт": {
+      "main": [
+        [
+          {
+            "node": "AmoCRM Создать сделку",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fields": {
+      "main": [
+        [
+          {
+            "node": "Парсинг даты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Парсинг даты": {
+      "main": [
+        [
+          {
+            "node": "AmoCRM Создать контакт",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AmoCRM Создать сделку": {
+      "main": [
+        [
+          {
+            "node": "AmoCRM Создать задачу",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AmoCRM Создать задачу": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Уведомление",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Calendar: Приём",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Yekaterinburg"
+  },
+  "versionId": "ea0bd7fd-68ba-40c9-bfab-31af50367ff0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "063c8cba689329b722d1b1e1bfe8a02783ad3f5ae1e8b014d1ebde538179b085"
+  },
+  "id": "s5sIMKxt-Zgm1Ghg-sZqO",
+  "tags": []
+}
